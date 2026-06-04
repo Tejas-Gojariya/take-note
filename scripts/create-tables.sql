@@ -131,6 +131,21 @@ CREATE POLICY "Users can update their own notes and shared notes with edit permi
 CREATE POLICY "Users can delete their own notes" ON notes
   FOR DELETE USING (auth.uid() = user_id);
 
+-- Helper to check note ownership without triggering recursive RLS checks
+CREATE OR REPLACE FUNCTION is_note_owner(note_uuid UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM notes
+    WHERE id = note_uuid
+      AND user_id = auth.uid()
+  );
+$$;
+
 -- Create RLS policies for user preferences
 CREATE POLICY "Users can view their own preferences" ON user_preferences
   FOR SELECT USING (auth.uid() = user_id);
@@ -152,15 +167,16 @@ CREATE POLICY "Users can insert their own AI interactions" ON ai_interactions
   FOR INSERT WITH CHECK (auth.uid() = user_id);
 
 -- Create RLS policies for note collaborators
+DROP POLICY IF EXISTS "Users can view collaborators for their notes" ON note_collaborators;
 CREATE POLICY "Users can view collaborators for their notes" ON note_collaborators
   FOR SELECT USING (
-    EXISTS (SELECT 1 FROM notes WHERE notes.id = note_collaborators.note_id AND notes.user_id = auth.uid()) OR
     auth.uid() = user_id
   );
 
+DROP POLICY IF EXISTS "Note owners can manage collaborators" ON note_collaborators;
 CREATE POLICY "Note owners can manage collaborators" ON note_collaborators
-  FOR ALL USING (
-    EXISTS (SELECT 1 FROM notes WHERE notes.id = note_collaborators.note_id AND notes.user_id = auth.uid())
+  FOR ALL USING (4
+    is_note_owner(note_collaborators.note_id)
   );
 
 -- Create function to update updated_at timestamp
