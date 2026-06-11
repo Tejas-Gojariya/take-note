@@ -4,12 +4,12 @@ import { z } from "zod"
 
 const preferencesSchema = z.object({
   theme: z.enum(["light", "dark", "system"]).optional(),
-  fontSize: z.enum(["small", "medium", "large"]).optional(),
-  editorTheme: z.enum(["default", "github", "monokai", "solarized"]).optional(),
-  autoSave: z.boolean().optional(),
-  emailNotifications: z.boolean().optional(),
-  pushNotifications: z.boolean().optional(),
-  weeklyDigest: z.boolean().optional(),
+  font_size: z.enum(["small", "medium", "large"]).optional(),
+  editor_theme: z.enum(["default", "github", "monokai", "solarized"]).optional(),
+  auto_save: z.boolean().optional(),
+  email_notifications: z.boolean().optional(),
+  push_notifications: z.boolean().optional(),
+  weekly_digest: z.boolean().optional(),
 })
 
 export async function GET(request: NextRequest) {

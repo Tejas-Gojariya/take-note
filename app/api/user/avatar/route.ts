@@ -29,9 +29,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Upload to Supabase Storage
-    const fileName = `${user.id}-${Date.now()}.${file.name.split(".").pop()}`
-    const { data: uploadData, error: uploadError } = await supabase.storage.from("avatars").upload(fileName, file, {
+    // Upload inside a user-specific folder so the storage policy can authorize it.
+    const fileExtension = file.name.split(".").pop() || "png"
+    const fileName = `${user.id}/${Date.now()}.${fileExtension}`
+    const { error: uploadError } = await supabase.storage.from("avatars").upload(fileName, file, {
       cacheControl: "3600",
       upsert: false,
     })

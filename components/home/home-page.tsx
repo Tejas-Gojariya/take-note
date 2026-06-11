@@ -33,20 +33,12 @@ export function HomePage() {
           </div>
 
           <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-              className="h-9 w-9 p-0"
-            >
+            <Button variant="ghost" size="sm" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} className="h-9 w-9 p-0">
               <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
               <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
             </Button>
 
-            <Button
-              className="btn-gradient text-white px-6 py-2 rounded-xl font-medium"
-              asChild
-            >
+            <Button className="btn-gradient text-white px-6 py-2 rounded-xl font-medium" asChild>
               <Link href="/auth/signin">
                 Get Started
                 <ArrowRight className="ml-2 h-4 w-4" />
@@ -73,8 +65,7 @@ export function HomePage() {
             </h1>
 
             <p className="text-xl md:text-2xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-              A beautiful, minimal note-taking app with AI-powered features.
-              Completely free and open source.
+              A beautiful, minimal note-taking app with AI-powered features. Completely free and open source.
             </p>
           </div>
 
@@ -89,25 +80,12 @@ export function HomePage() {
             >
               <Link href="/auth/signin">
                 Start Taking Notes
-                <ArrowRight
-                  className={`ml-2 h-5 w-5 transition-transform ${
-                    isHovered ? "translate-x-1" : ""
-                  }`}
-                />
+                <ArrowRight className={`ml-2 h-5 w-5 transition-transform ${isHovered ? "translate-x-1" : ""}`} />
               </Link>
             </Button>
 
-            <Button
-              variant="outline"
-              size="lg"
-              className="px-8 py-6 text-lg font-medium rounded-2xl border-2"
-              asChild
-            >
-              <a
-                href="https://github.com/hasnaintypes/take-notes"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
+            <Button variant="outline" size="lg" className="px-8 py-6 text-lg font-medium rounded-2xl border-2" asChild>
+              <a href="https://github.com/hasnaintypes/take-notes" target="_blank" rel="noopener noreferrer">
                 <Github className="mr-2 h-5 w-5" />
                 View on GitHub
               </a>
@@ -121,9 +99,7 @@ export function HomePage() {
                 <Sparkles className="h-8 w-8 text-white" />
               </div>
               <h3 className="text-xl font-semibold">AI-Powered</h3>
-              <p className="text-muted-foreground">
-                Smart features to enhance your note-taking experience
-              </p>
+              <p className="text-muted-foreground">Smart features to enhance your note-taking experience</p>
             </div>
 
             <div className="card-enhanced rounded-3xl p-8 text-center space-y-4">
@@ -131,9 +107,7 @@ export function HomePage() {
                 <Github className="h-8 w-8 text-white" />
               </div>
               <h3 className="text-xl font-semibold">Open Source</h3>
-              <p className="text-muted-foreground">
-                Transparent, community-driven development
-              </p>
+              <p className="text-muted-foreground">Transparent, community-driven development</p>
             </div>
 
             <div className="card-enhanced rounded-3xl p-8 text-center space-y-4">
@@ -141,9 +115,7 @@ export function HomePage() {
                 <span className="text-2xl font-bold text-white">∞</span>
               </div>
               <h3 className="text-xl font-semibold">Free Forever</h3>
-              <p className="text-muted-foreground">
-                No subscriptions, no limits, no hidden costs
-              </p>
+              <p className="text-muted-foreground">No subscriptions, no limits, no hidden costs</p>
             </div>
           </div>
         </div>
@@ -158,10 +130,8 @@ export function HomePage() {
             </div>
             <span className="font-semibold gradient-text">TakeNote</span>
           </div>
-          <p className="text-muted-foreground">
-            Built with ❤️ by the open source community
-          </p>
-          <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
+          <p className="text-muted-foreground">Built with ❤️ by the open source community</p>
+          {/* <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
             <a
               href="https://github.com/hasnaintypes/take-notes"
               className="hover:text-foreground transition-colors"
@@ -180,7 +150,7 @@ export function HomePage() {
             >
               License
             </a>
-          </div>
+          </div> */}
         </div>
       </footer>
     </div>
