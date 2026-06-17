@@ -11,6 +11,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import {
   FileText,
@@ -51,6 +59,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import { TagDisplay } from "./tag-display";
+import { toast } from "sonner";
 
 interface NoteEditorProps {
   note: Note | null;
@@ -75,12 +84,18 @@ export function NoteEditor({
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [featureDialog, setFeatureDialog] = useState<string | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareBusy, setShareBusy] = useState(false);
   const [isOnline] = useState(true);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [showRelatedNotes, setShowRelatedNotes] = useState(false);
   const [toolbarAction, setToolbarAction] = useState(0);
   const [showRichToolbar, setShowRichToolbar] = useState(true);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"viewer" | "editor">("viewer");
+  const [inviteBusy, setInviteBusy] = useState(false);
 
   const { updateNote, toggleFavorite, deleteNote, createCategory } =
     useNotesStore();
@@ -313,6 +328,89 @@ export function NoteEditor({
     }
   };
 
+  const handleShareNote = async () => {
+    if (!note) return;
+
+    try {
+      setShareBusy(true);
+      const response = await fetch(`/api/notes/${note.id}/share`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to create share link");
+      }
+
+      const data = await response.json();
+      setShareUrl(data.share_url);
+
+      if (navigator?.clipboard) {
+        await navigator.clipboard.writeText(data.share_url);
+      }
+    } catch {
+      setFeatureDialog("share");
+    } finally {
+      setShareBusy(false);
+    }
+  };
+
+  const handleCopyShareLink = async () => {
+    if (!note) return;
+
+    try {
+      setShareBusy(true);
+      const response = await fetch(`/api/notes/${note.id}/share`);
+
+      if (!response.ok) {
+        throw new Error("Failed to load share link");
+      }
+
+      const data = await response.json();
+      setShareUrl(data.share_url);
+      await navigator.clipboard.writeText(data.share_url);
+    } catch {
+      setFeatureDialog("copy link");
+    } finally {
+      setShareBusy(false);
+    }
+  };
+
+  const handleInviteCollaborator = async () => {
+    if (!note || !inviteEmail.trim()) {
+      return;
+    }
+
+    try {
+      setInviteBusy(true);
+      const response = await fetch(`/api/notes/${note.id}/collaborator-invites`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: inviteEmail.trim(),
+          role: inviteRole,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to invite collaborator");
+      }
+
+      toast.success(`Invite created for ${data.invite.email} as ${data.invite.role}`);
+      setShareUrl(data.invite.invite_url);
+      setInviteEmail("");
+      setInviteRole("viewer");
+      setInviteOpen(false);
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to invite collaborator");
+    } finally {
+      setInviteBusy(false);
+    }
+  };
+
   const renderPreview = () => {
     return (
       <div
@@ -440,18 +538,16 @@ export function NoteEditor({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem
-                    onClick={() => setFeatureDialog("collaboration")}
+                    onClick={() => setInviteOpen(true)}
                   >
                     <Users className="h-4 w-4 mr-2" />
                     Collaborate
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setFeatureDialog("share")}>
+                  <DropdownMenuItem onClick={handleShareNote}>
                     <Share className="h-4 w-4 mr-2" />
-                    Share Note
+                    {shareBusy ? "Creating link..." : "Share Note"}
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => setFeatureDialog("copy link")}
-                  >
+                  <DropdownMenuItem onClick={handleCopyShareLink}>
                     <Link2 className="h-4 w-4 mr-2" />
                     Copy Link
                   </DropdownMenuItem>
@@ -602,6 +698,69 @@ export function NoteEditor({
         onOpenChange={() => setFeatureDialog(null)}
         feature={featureDialog || ""}
       />
+
+      {shareUrl && (
+        <div className="fixed bottom-4 right-4 z-50 max-w-sm rounded-lg border bg-background p-4 shadow-lg">
+          <p className="text-sm font-medium">Share link ready</p>
+          <p className="mt-1 break-all text-xs text-muted-foreground">
+            {shareUrl}
+          </p>
+        </div>
+      )}
+
+      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Invite collaborator</DialogTitle>
+            <DialogDescription>
+              Invite an existing TakeNote user by email and choose their access level.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Email</label>
+              <Input
+                type="email"
+                placeholder="collaborator@example.com"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Role</label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={inviteRole === "viewer" ? "default" : "outline"}
+                  onClick={() => setInviteRole("viewer")}
+                  className="flex-1"
+                >
+                  Viewer
+                </Button>
+                <Button
+                  type="button"
+                  variant={inviteRole === "editor" ? "default" : "outline"}
+                  onClick={() => setInviteRole("editor")}
+                  className="flex-1"
+                >
+                  Editor
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInviteOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleInviteCollaborator} disabled={inviteBusy}>
+              {inviteBusy ? "Inviting..." : "Invite"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
