@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,6 +27,14 @@ import {
   Eye,
   Edit3,
   PanelRightOpen,
+  Bold,
+  Italic,
+  Heading1,
+  Heading2,
+  List,
+  ListOrdered,
+  Quote,
+  Code2,
 } from "lucide-react";
 import type { Note, Category } from "@/types";
 import { useNotesStore } from "@/hooks/use-notes-store";
@@ -70,6 +78,9 @@ export function NoteEditor({
   const [isOnline] = useState(true);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [showRelatedNotes, setShowRelatedNotes] = useState(false);
+  const [toolbarAction, setToolbarAction] = useState(0);
+  const [showRichToolbar, setShowRichToolbar] = useState(true);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const { updateNote, toggleFavorite, deleteNote, createCategory } =
     useNotesStore();
@@ -128,6 +139,62 @@ export function NoteEditor({
     setHasUnsavedChanges(true);
   };
 
+  const applyMarkdownWrap = (
+    prefix: string,
+    suffix = prefix,
+    placeholder = ""
+  ) => {
+    const textarea = textareaRef.current;
+
+    if (!textarea) {
+      return;
+    }
+
+    const start = textarea.selectionStart ?? content.length;
+    const end = textarea.selectionEnd ?? content.length;
+    const selectedText = content.slice(start, end);
+    const nextText =
+      content.slice(0, start) +
+      prefix +
+      (selectedText || placeholder) +
+      suffix +
+      content.slice(end);
+
+    handleContentChange(nextText);
+    setToolbarAction((value) => value + 1);
+
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const cursorStart = start + prefix.length;
+      const cursorEnd = cursorStart + (selectedText || placeholder).length;
+      textarea.setSelectionRange(cursorStart, cursorEnd);
+    });
+  };
+
+  const applyMarkdownLinePrefix = (linePrefix: string, fallback = "") => {
+    const textarea = textareaRef.current;
+
+    if (!textarea) {
+      return;
+    }
+
+    const start = textarea.selectionStart ?? content.length;
+    const end = textarea.selectionEnd ?? content.length;
+    const selectedText = content.slice(start, end);
+    const block = selectedText || fallback;
+    const lines = block.split("\n").map((line) => `${linePrefix}${line}`);
+    const nextText =
+      content.slice(0, start) + lines.join("\n") + content.slice(end);
+
+    handleContentChange(nextText);
+    setToolbarAction((value) => value + 1);
+
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start, start + lines.join("\n").length);
+    });
+  };
+
   const handleCategoryChange = (value: string) => {
     setCategoryId(value);
     setHasUnsavedChanges(true);
@@ -137,6 +204,54 @@ export function NoteEditor({
     setTags(newTags);
     setHasUnsavedChanges(true);
   };
+
+  const markdownToolbar = [
+    {
+      label: "Bold",
+      icon: Bold,
+      action: () => applyMarkdownWrap("**", "**", "bold text"),
+    },
+    {
+      label: "Italic",
+      icon: Italic,
+      action: () => applyMarkdownWrap("*", "*", "italic text"),
+    },
+    {
+      label: "H1",
+      icon: Heading1,
+      action: () => applyMarkdownLinePrefix("# ", "Heading 1"),
+    },
+    {
+      label: "H2",
+      icon: Heading2,
+      action: () => applyMarkdownLinePrefix("## ", "Heading 2"),
+    },
+    {
+      label: "Bullets",
+      icon: List,
+      action: () => applyMarkdownLinePrefix("- ", "List item"),
+    },
+    {
+      label: "Numbered",
+      icon: ListOrdered,
+      action: () => applyMarkdownLinePrefix("1. ", "List item"),
+    },
+    {
+      label: "Quote",
+      icon: Quote,
+      action: () => applyMarkdownLinePrefix("> ", "Quote"),
+    },
+    {
+      label: "Code",
+      icon: Code2,
+      action: () => applyMarkdownWrap("`", "`", "code"),
+    },
+    {
+      label: "Link",
+      icon: Link2,
+      action: () => applyMarkdownWrap("[", "](https://)", "link text"),
+    },
+  ];
 
   // AI Functions (simulated)
   const handleAISummarize = async () => {
@@ -362,38 +477,77 @@ export function NoteEditor({
           />
 
           {/* Metadata and Tools */}
-          <div className="flex flex-col sm:flex-row gap-2 lg:gap-3 sm:items-center">
-            <CategorySelect
-              categories={categories}
-              value={categoryId}
-              onValueChange={handleCategoryChange}
-              onCreateCategory={createCategory}
-            />
-
-            <div className="flex-1 min-w-0">
-              {isPreviewMode ? (
-                <TagDisplay
-                  tags={tags}
-                  isPreview={true}
-                  maxPreviewTags={3}
-                  className="mt-1"
-                />
-              ) : (
-                <SimpleTagInput
-                  tags={tags}
-                  onChange={handleTagsChange}
-                  placeholder="Add tags..."
-                />
-              )}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Edit3 className="h-3 w-3" />
+                <span>Markdown editor</span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowRichToolbar(!showRichToolbar)}
+                className="h-7 px-2 text-xs"
+              >
+                {showRichToolbar ? "Hide tools" : "Show tools"}
+              </Button>
             </div>
 
-            <AIToolsMenu
-              onSummarize={handleAISummarize}
-              onRephrase={handleAIRephrase}
-              onTranslate={handleAITranslate}
-              onGenerateTemplate={handleGenerateTemplate}
-              onGenerateTags={handleGenerateTags}
-            />
+            {showRichToolbar && !isPreviewMode && (
+              <div className="flex flex-wrap gap-1 rounded-lg border bg-muted/30 p-1">
+                {markdownToolbar.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <Button
+                      key={item.label}
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={item.action}
+                      className="h-8 px-2 text-xs"
+                      title={item.label}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      <span className="hidden md:inline">{item.label}</span>
+                    </Button>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-2 lg:gap-3 sm:items-center">
+              <CategorySelect
+                categories={categories}
+                value={categoryId}
+                onValueChange={handleCategoryChange}
+                onCreateCategory={createCategory}
+              />
+
+              <div className="flex-1 min-w-0">
+                {isPreviewMode ? (
+                  <TagDisplay
+                    tags={tags}
+                    isPreview={true}
+                    maxPreviewTags={3}
+                    className="mt-1"
+                  />
+                ) : (
+                  <SimpleTagInput
+                    tags={tags}
+                    onChange={handleTagsChange}
+                    placeholder="Add tags..."
+                  />
+                )}
+              </div>
+
+              <AIToolsMenu
+                onSummarize={handleAISummarize}
+                onRephrase={handleAIRephrase}
+                onTranslate={handleAITranslate}
+                onGenerateTemplate={handleGenerateTemplate}
+                onGenerateTags={handleGenerateTags}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -405,8 +559,24 @@ export function NoteEditor({
             <div className="h-full overflow-auto">{renderPreview()}</div>
           ) : (
             <Textarea
+              ref={textareaRef}
+              key={toolbarAction}
               value={content}
               onChange={(e) => handleContentChange(e.target.value)}
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
+                  e.preventDefault();
+                  applyMarkdownWrap("**", "**", "bold text");
+                }
+                if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "i") {
+                  e.preventDefault();
+                  applyMarkdownWrap("*", "*", "italic text");
+                }
+                if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+                  e.preventDefault();
+                  applyMarkdownWrap("[", "](https://)", "link text");
+                }
+              }}
               placeholder="Start writing here..."
               className="w-full h-full resize-none border-0 focus-visible:ring-0 bg-transparent text-sm leading-relaxed p-4"
             />
