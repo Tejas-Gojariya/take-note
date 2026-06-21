@@ -74,6 +74,16 @@ export function DashboardLayout({ user }: DashboardLayoutProps) {
     return searchableText.includes(normalizedQuery);
   });
 
+  const sortedNotes = [...filteredNotes].sort((a, b) => {
+    if (a.isFavorite !== b.isFavorite) {
+      return a.isFavorite ? -1 : 1;
+    }
+
+    return (
+      new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
+  });
+
   // Auto-hide sidebar on mobile when note is selected
   useEffect(() => {
     if (isMobile && selectedNote) {
@@ -113,7 +123,7 @@ export function DashboardLayout({ user }: DashboardLayoutProps) {
           onCreateCategory={createCategory}
         />
 
-        <SidebarInset className="flex flex-col">
+        <SidebarInset className="flex min-h-0 flex-col">
           <TopBar
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
@@ -122,28 +132,29 @@ export function DashboardLayout({ user }: DashboardLayoutProps) {
             showBackButton={isMobile && !!selectedNote}
           />
 
-          <div className="flex-1 flex overflow-hidden">
+          <div className="flex min-h-0 flex-1 overflow-hidden">
             {/* Notes List - Hidden on mobile when note is selected */}
             <div
               className={cn(
-                "border-r bg-muted/10 transition-all duration-300",
+                "border-r bg-muted/10 transition-all duration-300 min-h-0",
                 isMobile && selectedNote ? "hidden" : "flex",
-                isMobile ? "flex-1" : "w-80 xl:w-96"
+                isMobile ? "flex-1" : "w-[24rem] xl:w-[26rem] 2xl:w-[28rem] shrink-0"
               )}
             >
               <NotesList
-                notes={filteredNotes}
+                notes={sortedNotes}
                 selectedNote={selectedNote}
                 onNoteSelect={handleNoteSelect}
                 className="w-full"
                 isLoading={isLoading}
+                isTrashView={selectedCategory === "trash"}
               />
             </div>
 
             {/* Note Editor - Full width on mobile when note is selected */}
             <div
               className={cn(
-                "flex-1 transition-all duration-300",
+                "flex min-w-[360px] flex-1 transition-all duration-300",
                 isMobile && !selectedNote && "hidden"
               )}
             >

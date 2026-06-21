@@ -45,6 +45,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 import type { Category, User } from "@/types";
 import { useNotesStore } from "@/hooks/use-notes-store";
 import { useRouter } from "next/navigation";
@@ -163,6 +164,11 @@ export function AppSidebar({
                   <SidebarMenuButton
                     isActive={selectedCategory === item.id}
                     onClick={() => onCategorySelect(item.id)}
+                    className={cn(
+                      "transition-all duration-200",
+                      selectedCategory === item.id &&
+                        "bg-gray-300 text-sidebar-foreground font-semibold"
+                    )}
                   >
                     <item.icon className="h-4 w-4" />
                     <span className="flex-1">{item.label}</span>
@@ -226,7 +232,11 @@ export function AppSidebar({
                         <SidebarMenuButton
                           isActive={selectedCategory === category.id}
                           onClick={() => onCategorySelect(category.id)}
-                          className="flex-1"
+                          className={cn(
+                            "flex-1 transition-all duration-200",
+                            selectedCategory === category.id &&
+                              "bg-muted text-sidebar-foreground font-semibold"
+                          )}
                         >
                           <Folder className="h-4 w-4" />
                           <span className="flex-1 truncate">{category.name}</span>
