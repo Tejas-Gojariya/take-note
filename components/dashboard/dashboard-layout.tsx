@@ -43,14 +43,36 @@ export function DashboardLayout({ user }: DashboardLayoutProps) {
   }, [loadNotes, loadCategories]);
 
   // Filter notes based on selected category and search query
-  const filteredNotes =
-    selectedCategory === "trash"
-      ? notes.filter((n) => n.deletedAt)
-      : selectedCategory === "favorites"
-      ? notes.filter((n) => n.isFavorite && !n.deletedAt)
-      : selectedCategory === "all"
-      ? notes.filter((n) => !n.deletedAt)
-      : notes.filter((n) => n.categoryId === selectedCategory && !n.deletedAt);
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+
+  const filteredNotes = notes.filter((note) => {
+    const matchesCategory =
+      selectedCategory === "trash"
+        ? !!note.deletedAt
+        : selectedCategory === "favorites"
+        ? note.isFavorite && !note.deletedAt
+        : selectedCategory === "all"
+        ? !note.deletedAt
+        : note.categoryId === selectedCategory && !note.deletedAt;
+
+    if (!matchesCategory) {
+      return false;
+    }
+
+    if (!normalizedQuery) {
+      return true;
+    }
+
+    const searchableText = [
+      note.title,
+      note.content,
+      ...(note.tags || []),
+    ]
+      .join(" ")
+      .toLowerCase();
+
+    return searchableText.includes(normalizedQuery);
+  });
 
   // Auto-hide sidebar on mobile when note is selected
   useEffect(() => {

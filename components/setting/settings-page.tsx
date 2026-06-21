@@ -83,12 +83,12 @@ type PasswordFormData = z.infer<typeof passwordSchema>;
 
 interface UserPreferences {
   theme?: "light" | "dark" | "system";
-  fontSize?: "small" | "medium" | "large";
-  editorTheme?: "default" | "github" | "monokai" | "solarized";
-  autoSave?: boolean;
-  emailNotifications?: boolean;
-  pushNotifications?: boolean;
-  weeklyDigest?: boolean;
+  font_size?: "small" | "medium" | "large";
+  editor_theme?: "default" | "github" | "monokai" | "solarized";
+  auto_save?: boolean;
+  email_notifications?: boolean;
+  push_notifications?: boolean;
+  weekly_digest?: boolean;
 }
 
 interface SettingsPageProps {
@@ -607,9 +607,9 @@ export function SettingsPage({ user }: SettingsPageProps) {
                     Choose your preferred font size
                   </p>
                   <Select
-                    value={preferences.fontSize || "medium"}
+                    value={preferences.font_size || "medium"}
                     onValueChange={(value) =>
-                      updatePreferences({ fontSize: value as any })
+                      updatePreferences({ font_size: value as any })
                     }
                   >
                     <SelectTrigger className="w-48">
@@ -631,9 +631,9 @@ export function SettingsPage({ user }: SettingsPageProps) {
                     Choose your preferred editor theme
                   </p>
                   <Select
-                    value={preferences.editorTheme || "default"}
+                    value={preferences.editor_theme || "default"}
                     onValueChange={(value) =>
-                      updatePreferences({ editorTheme: value as any })
+                      updatePreferences({ editor_theme: value as any })
                     }
                   >
                     <SelectTrigger className="w-48">
@@ -658,9 +658,9 @@ export function SettingsPage({ user }: SettingsPageProps) {
                     </p>
                   </div>
                   <Switch
-                    checked={preferences.autoSave ?? true}
+                    checked={preferences.auto_save ?? true}
                     onCheckedChange={(checked) =>
-                      updatePreferences({ autoSave: checked })
+                      updatePreferences({ auto_save: checked })
                     }
                   />
                 </div>
@@ -687,9 +687,9 @@ export function SettingsPage({ user }: SettingsPageProps) {
                     </p>
                   </div>
                   <Switch
-                    checked={preferences.emailNotifications ?? true}
+                    checked={preferences.email_notifications ?? true}
                     onCheckedChange={(checked) =>
-                      updatePreferences({ emailNotifications: checked })
+                      updatePreferences({ email_notifications: checked })
                     }
                   />
                 </div>
@@ -704,9 +704,9 @@ export function SettingsPage({ user }: SettingsPageProps) {
                     </p>
                   </div>
                   <Switch
-                    checked={preferences.pushNotifications ?? false}
+                    checked={preferences.push_notifications ?? false}
                     onCheckedChange={(checked) =>
-                      updatePreferences({ pushNotifications: checked })
+                      updatePreferences({ push_notifications: checked })
                     }
                   />
                 </div>
@@ -721,9 +721,9 @@ export function SettingsPage({ user }: SettingsPageProps) {
                     </p>
                   </div>
                   <Switch
-                    checked={preferences.weeklyDigest ?? true}
+                    checked={preferences.weekly_digest ?? true}
                     onCheckedChange={(checked) =>
-                      updatePreferences({ weeklyDigest: checked })
+                      updatePreferences({ weekly_digest: checked })
                     }
                   />
                 </div>

@@ -110,7 +110,7 @@ export function CategorySelect({
               {categories.map((category) => (
                 <CommandItem
                   key={category.id}
-                  value={category.id}
+                  value={category.name}
                   onSelect={() => {
                     onValueChange(category.id);
                     setOpen(false);

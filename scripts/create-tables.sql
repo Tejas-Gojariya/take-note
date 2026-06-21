@@ -22,6 +22,8 @@ CREATE TABLE notes (
   tags TEXT[] DEFAULT '{}',
   is_favorite BOOLEAN DEFAULT FALSE,
   deleted_at TIMESTAMP WITH TIME ZONE,
+  share_token TEXT UNIQUE,
+  shared_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -66,12 +68,29 @@ CREATE TABLE note_collaborators (
   UNIQUE(note_id, user_id)
 );
 
+-- Create note collaborator invites table
+CREATE TABLE note_collaborator_invites (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  note_id UUID NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+  email TEXT NOT NULL,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN ('viewer', 'editor')),
+  token TEXT NOT NULL UNIQUE,
+  invited_by UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'revoked', 'expired')),
+  invited_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  accepted_at TIMESTAMP WITH TIME ZONE,
+  expires_at TIMESTAMP WITH TIME ZONE,
+  UNIQUE(note_id, email, status)
+);
+
 -- Create indexes for better performance
 CREATE INDEX idx_notes_user_id ON notes(user_id);
 CREATE INDEX idx_notes_category_id ON notes(category_id);
 CREATE INDEX idx_notes_created_at ON notes(created_at);
 CREATE INDEX idx_notes_updated_at ON notes(updated_at);
 CREATE INDEX idx_notes_deleted_at ON notes(deleted_at);
+CREATE INDEX idx_notes_share_token ON notes(share_token);
 CREATE INDEX idx_notes_tags ON notes USING GIN(tags);
 CREATE INDEX idx_notes_content_search ON notes USING GIN(to_tsvector('english', coalesce(title, '') || ' ' || coalesce(content, '')));
 CREATE INDEX idx_categories_user_id ON categories(user_id);
@@ -80,6 +99,9 @@ CREATE INDEX idx_ai_interactions_user_id ON ai_interactions(user_id);
 CREATE INDEX idx_ai_interactions_note_id ON ai_interactions(note_id);
 CREATE INDEX idx_note_collaborators_note_id ON note_collaborators(note_id);
 CREATE INDEX idx_note_collaborators_user_id ON note_collaborators(user_id);
+CREATE INDEX idx_note_collaborator_invites_note_id ON note_collaborator_invites(note_id);
+CREATE INDEX idx_note_collaborator_invites_email ON note_collaborator_invites(email);
+CREATE INDEX idx_note_collaborator_invites_token ON note_collaborator_invites(token);
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
@@ -87,6 +109,7 @@ ALTER TABLE notes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_preferences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ai_interactions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE note_collaborators ENABLE ROW LEVEL SECURITY;
+ALTER TABLE note_collaborator_invites ENABLE ROW LEVEL SECURITY;
 
 -- Create RLS policies for categories
 CREATE POLICY "Users can view their own categories" ON categories
@@ -170,13 +193,22 @@ CREATE POLICY "Users can insert their own AI interactions" ON ai_interactions
 DROP POLICY IF EXISTS "Users can view collaborators for their notes" ON note_collaborators;
 CREATE POLICY "Users can view collaborators for their notes" ON note_collaborators
   FOR SELECT USING (
-    auth.uid() = user_id
+    auth.uid() = user_id OR is_note_owner(note_collaborators.note_id)
   );
 
 DROP POLICY IF EXISTS "Note owners can manage collaborators" ON note_collaborators;
 CREATE POLICY "Note owners can manage collaborators" ON note_collaborators
-  FOR ALL USING (4
+  FOR ALL USING (
     is_note_owner(note_collaborators.note_id)
+  );
+
+-- Create RLS policies for collaborator invites
+CREATE POLICY "Users can view their own invites" ON note_collaborator_invites
+  FOR SELECT USING (auth.uid() = user_id OR auth.uid() = invited_by);
+
+CREATE POLICY "Note owners can manage invites" ON note_collaborator_invites
+  FOR ALL USING (
+    is_note_owner(note_collaborator_invites.note_id)
   );
 
 -- Create function to update updated_at timestamp

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,6 +11,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import {
   FileText,
@@ -27,6 +35,14 @@ import {
   Eye,
   Edit3,
   PanelRightOpen,
+  Bold,
+  Italic,
+  Heading1,
+  Heading2,
+  List,
+  ListOrdered,
+  Quote,
+  Code2,
 } from "lucide-react";
 import type { Note, Category } from "@/types";
 import { useNotesStore } from "@/hooks/use-notes-store";
@@ -43,6 +59,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import { TagDisplay } from "./tag-display";
+import { toast } from "sonner";
 
 interface NoteEditorProps {
   note: Note | null;
@@ -67,9 +84,18 @@ export function NoteEditor({
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [featureDialog, setFeatureDialog] = useState<string | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareBusy, setShareBusy] = useState(false);
   const [isOnline] = useState(true);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [showRelatedNotes, setShowRelatedNotes] = useState(false);
+  const [toolbarAction, setToolbarAction] = useState(0);
+  const [showRichToolbar, setShowRichToolbar] = useState(true);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"viewer" | "editor">("viewer");
+  const [inviteBusy, setInviteBusy] = useState(false);
 
   const { updateNote, toggleFavorite, deleteNote, createCategory } =
     useNotesStore();
@@ -128,6 +154,62 @@ export function NoteEditor({
     setHasUnsavedChanges(true);
   };
 
+  const applyMarkdownWrap = (
+    prefix: string,
+    suffix = prefix,
+    placeholder = ""
+  ) => {
+    const textarea = textareaRef.current;
+
+    if (!textarea) {
+      return;
+    }
+
+    const start = textarea.selectionStart ?? content.length;
+    const end = textarea.selectionEnd ?? content.length;
+    const selectedText = content.slice(start, end);
+    const nextText =
+      content.slice(0, start) +
+      prefix +
+      (selectedText || placeholder) +
+      suffix +
+      content.slice(end);
+
+    handleContentChange(nextText);
+    setToolbarAction((value) => value + 1);
+
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const cursorStart = start + prefix.length;
+      const cursorEnd = cursorStart + (selectedText || placeholder).length;
+      textarea.setSelectionRange(cursorStart, cursorEnd);
+    });
+  };
+
+  const applyMarkdownLinePrefix = (linePrefix: string, fallback = "") => {
+    const textarea = textareaRef.current;
+
+    if (!textarea) {
+      return;
+    }
+
+    const start = textarea.selectionStart ?? content.length;
+    const end = textarea.selectionEnd ?? content.length;
+    const selectedText = content.slice(start, end);
+    const block = selectedText || fallback;
+    const lines = block.split("\n").map((line) => `${linePrefix}${line}`);
+    const nextText =
+      content.slice(0, start) + lines.join("\n") + content.slice(end);
+
+    handleContentChange(nextText);
+    setToolbarAction((value) => value + 1);
+
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start, start + lines.join("\n").length);
+    });
+  };
+
   const handleCategoryChange = (value: string) => {
     setCategoryId(value);
     setHasUnsavedChanges(true);
@@ -137,6 +219,54 @@ export function NoteEditor({
     setTags(newTags);
     setHasUnsavedChanges(true);
   };
+
+  const markdownToolbar = [
+    {
+      label: "Bold",
+      icon: Bold,
+      action: () => applyMarkdownWrap("**", "**", "bold text"),
+    },
+    {
+      label: "Italic",
+      icon: Italic,
+      action: () => applyMarkdownWrap("*", "*", "italic text"),
+    },
+    {
+      label: "H1",
+      icon: Heading1,
+      action: () => applyMarkdownLinePrefix("# ", "Heading 1"),
+    },
+    {
+      label: "H2",
+      icon: Heading2,
+      action: () => applyMarkdownLinePrefix("## ", "Heading 2"),
+    },
+    {
+      label: "Bullets",
+      icon: List,
+      action: () => applyMarkdownLinePrefix("- ", "List item"),
+    },
+    {
+      label: "Numbered",
+      icon: ListOrdered,
+      action: () => applyMarkdownLinePrefix("1. ", "List item"),
+    },
+    {
+      label: "Quote",
+      icon: Quote,
+      action: () => applyMarkdownLinePrefix("> ", "Quote"),
+    },
+    {
+      label: "Code",
+      icon: Code2,
+      action: () => applyMarkdownWrap("`", "`", "code"),
+    },
+    {
+      label: "Link",
+      icon: Link2,
+      action: () => applyMarkdownWrap("[", "](https://)", "link text"),
+    },
+  ];
 
   // AI Functions (simulated)
   const handleAISummarize = async () => {
@@ -195,6 +325,89 @@ export function NoteEditor({
       if (onBackToList) {
         onBackToList();
       }
+    }
+  };
+
+  const handleShareNote = async () => {
+    if (!note) return;
+
+    try {
+      setShareBusy(true);
+      const response = await fetch(`/api/notes/${note.id}/share`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to create share link");
+      }
+
+      const data = await response.json();
+      setShareUrl(data.share_url);
+
+      if (navigator?.clipboard) {
+        await navigator.clipboard.writeText(data.share_url);
+      }
+    } catch {
+      setFeatureDialog("share");
+    } finally {
+      setShareBusy(false);
+    }
+  };
+
+  const handleCopyShareLink = async () => {
+    if (!note) return;
+
+    try {
+      setShareBusy(true);
+      const response = await fetch(`/api/notes/${note.id}/share`);
+
+      if (!response.ok) {
+        throw new Error("Failed to load share link");
+      }
+
+      const data = await response.json();
+      setShareUrl(data.share_url);
+      await navigator.clipboard.writeText(data.share_url);
+    } catch {
+      setFeatureDialog("copy link");
+    } finally {
+      setShareBusy(false);
+    }
+  };
+
+  const handleInviteCollaborator = async () => {
+    if (!note || !inviteEmail.trim()) {
+      return;
+    }
+
+    try {
+      setInviteBusy(true);
+      const response = await fetch(`/api/notes/${note.id}/collaborator-invites`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: inviteEmail.trim(),
+          role: inviteRole,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to invite collaborator");
+      }
+
+      toast.success(`Invite created for ${data.invite.email} as ${data.invite.role}`);
+      setShareUrl(data.invite.invite_url);
+      setInviteEmail("");
+      setInviteRole("viewer");
+      setInviteOpen(false);
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to invite collaborator");
+    } finally {
+      setInviteBusy(false);
     }
   };
 
@@ -325,18 +538,16 @@ export function NoteEditor({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem
-                    onClick={() => setFeatureDialog("collaboration")}
+                    onClick={() => setInviteOpen(true)}
                   >
                     <Users className="h-4 w-4 mr-2" />
                     Collaborate
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setFeatureDialog("share")}>
+                  <DropdownMenuItem onClick={handleShareNote}>
                     <Share className="h-4 w-4 mr-2" />
-                    Share Note
+                    {shareBusy ? "Creating link..." : "Share Note"}
                   </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => setFeatureDialog("copy link")}
-                  >
+                  <DropdownMenuItem onClick={handleCopyShareLink}>
                     <Link2 className="h-4 w-4 mr-2" />
                     Copy Link
                   </DropdownMenuItem>
@@ -362,38 +573,77 @@ export function NoteEditor({
           />
 
           {/* Metadata and Tools */}
-          <div className="flex flex-col sm:flex-row gap-2 lg:gap-3 sm:items-center">
-            <CategorySelect
-              categories={categories}
-              value={categoryId}
-              onValueChange={handleCategoryChange}
-              onCreateCategory={createCategory}
-            />
-
-            <div className="flex-1 min-w-0">
-              {isPreviewMode ? (
-                <TagDisplay
-                  tags={tags}
-                  isPreview={true}
-                  maxPreviewTags={3}
-                  className="mt-1"
-                />
-              ) : (
-                <SimpleTagInput
-                  tags={tags}
-                  onChange={handleTagsChange}
-                  placeholder="Add tags..."
-                />
-              )}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Edit3 className="h-3 w-3" />
+                <span>Markdown editor</span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowRichToolbar(!showRichToolbar)}
+                className="h-7 px-2 text-xs"
+              >
+                {showRichToolbar ? "Hide tools" : "Show tools"}
+              </Button>
             </div>
 
-            <AIToolsMenu
-              onSummarize={handleAISummarize}
-              onRephrase={handleAIRephrase}
-              onTranslate={handleAITranslate}
-              onGenerateTemplate={handleGenerateTemplate}
-              onGenerateTags={handleGenerateTags}
-            />
+            {showRichToolbar && !isPreviewMode && (
+              <div className="flex flex-wrap gap-1 rounded-lg border bg-muted/30 p-1">
+                {markdownToolbar.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <Button
+                      key={item.label}
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={item.action}
+                      className="h-8 px-2 text-xs"
+                      title={item.label}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      <span className="hidden md:inline">{item.label}</span>
+                    </Button>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-2 lg:gap-3 sm:items-center">
+              <CategorySelect
+                categories={categories}
+                value={categoryId}
+                onValueChange={handleCategoryChange}
+                onCreateCategory={createCategory}
+              />
+
+              <div className="flex-1 min-w-0">
+                {isPreviewMode ? (
+                  <TagDisplay
+                    tags={tags}
+                    isPreview={true}
+                    maxPreviewTags={3}
+                    className="mt-1"
+                  />
+                ) : (
+                  <SimpleTagInput
+                    tags={tags}
+                    onChange={handleTagsChange}
+                    placeholder="Add tags..."
+                  />
+                )}
+              </div>
+
+              <AIToolsMenu
+                onSummarize={handleAISummarize}
+                onRephrase={handleAIRephrase}
+                onTranslate={handleAITranslate}
+                onGenerateTemplate={handleGenerateTemplate}
+                onGenerateTags={handleGenerateTags}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -405,8 +655,24 @@ export function NoteEditor({
             <div className="h-full overflow-auto">{renderPreview()}</div>
           ) : (
             <Textarea
+              ref={textareaRef}
+              key={toolbarAction}
               value={content}
               onChange={(e) => handleContentChange(e.target.value)}
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
+                  e.preventDefault();
+                  applyMarkdownWrap("**", "**", "bold text");
+                }
+                if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "i") {
+                  e.preventDefault();
+                  applyMarkdownWrap("*", "*", "italic text");
+                }
+                if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+                  e.preventDefault();
+                  applyMarkdownWrap("[", "](https://)", "link text");
+                }
+              }}
               placeholder="Start writing here..."
               className="w-full h-full resize-none border-0 focus-visible:ring-0 bg-transparent text-sm leading-relaxed p-4"
             />
@@ -432,6 +698,69 @@ export function NoteEditor({
         onOpenChange={() => setFeatureDialog(null)}
         feature={featureDialog || ""}
       />
+
+      {shareUrl && (
+        <div className="fixed bottom-4 right-4 z-50 max-w-sm rounded-lg border bg-background p-4 shadow-lg">
+          <p className="text-sm font-medium">Share link ready</p>
+          <p className="mt-1 break-all text-xs text-muted-foreground">
+            {shareUrl}
+          </p>
+        </div>
+      )}
+
+      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Invite collaborator</DialogTitle>
+            <DialogDescription>
+              Invite an existing TakeNote user by email and choose their access level.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Email</label>
+              <Input
+                type="email"
+                placeholder="collaborator@example.com"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Role</label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={inviteRole === "viewer" ? "default" : "outline"}
+                  onClick={() => setInviteRole("viewer")}
+                  className="flex-1"
+                >
+                  Viewer
+                </Button>
+                <Button
+                  type="button"
+                  variant={inviteRole === "editor" ? "default" : "outline"}
+                  onClick={() => setInviteRole("editor")}
+                  className="flex-1"
+                >
+                  Editor
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInviteOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleInviteCollaborator} disabled={inviteBusy}>
+              {inviteBusy ? "Inviting..." : "Invite"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

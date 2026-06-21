@@ -8,6 +8,7 @@ import {
   Trash2,
   Plus,
   Folder,
+  MoreHorizontal,
   Settings,
   LogOut,
   Sparkles,
@@ -30,6 +31,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -56,8 +67,9 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const [isCreatingCategory, setIsCreatingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
 
-  const { createNote, notes } = useNotesStore();
+  const { createNote, notes, deleteCategory } = useNotesStore();
   const router = useRouter();
 
   const handleSignOut = async () => {
@@ -92,6 +104,15 @@ export function AppSidebar({
       setIsCreatingCategory(false);
       setNewCategoryName("");
     }
+  };
+
+  const handleDeleteCategory = async () => {
+    if (!categoryToDelete) {
+      return;
+    }
+
+    await deleteCategory(categoryToDelete.id);
+    setCategoryToDelete(null);
   };
 
   const mainItems = [
@@ -201,18 +222,43 @@ export function AppSidebar({
                   );
                   return (
                     <SidebarMenuItem key={category.id}>
-                      <SidebarMenuButton
-                        isActive={selectedCategory === category.id}
-                        onClick={() => onCategorySelect(category.id)}
-                      >
-                        <Folder className="h-4 w-4" />
-                        <span className="flex-1 truncate">{category.name}</span>
-                        {categoryNotes.length > 0 && (
-                          <Badge variant="outline" className="text-xs">
-                            {categoryNotes.length}
-                          </Badge>
-                        )}
-                      </SidebarMenuButton>
+                      <div className="flex items-center gap-1">
+                        <SidebarMenuButton
+                          isActive={selectedCategory === category.id}
+                          onClick={() => onCategorySelect(category.id)}
+                          className="flex-1"
+                        >
+                          <Folder className="h-4 w-4" />
+                          <span className="flex-1 truncate">{category.name}</span>
+                          {categoryNotes.length > 0 && (
+                            <Badge variant="outline" className="text-xs">
+                              {categoryNotes.length}
+                            </Badge>
+                          )}
+                        </SidebarMenuButton>
+
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 shrink-0 opacity-60 hover:opacity-100"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => setCategoryToDelete(category)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </SidebarMenuItem>
                   );
                 })}
@@ -275,6 +321,35 @@ export function AppSidebar({
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarFooter>
+
+      <AlertDialog
+        open={!!categoryToDelete}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCategoryToDelete(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete category?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove "{categoryToDelete?.name}" from all notes and delete the category.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setCategoryToDelete(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteCategory}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sidebar>
   );
 }
