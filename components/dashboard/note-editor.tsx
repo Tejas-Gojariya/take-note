@@ -19,6 +19,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import {
   FileText,
@@ -96,6 +106,7 @@ export function NoteEditor({
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"viewer" | "editor">("viewer");
   const [inviteBusy, setInviteBusy] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const { updateNote, toggleFavorite, deleteNote, createCategory } =
     useNotesStore();
@@ -122,7 +133,7 @@ export function NoteEditor({
 
   const handleSave = useCallback(async () => {
     if (note && hasUnsavedChanges) {
-      updateNote(note.id, {
+      await updateNote(note.id, {
         title: title || "Untitled",
         content,
         categoryId: categoryId || undefined,
@@ -304,6 +315,14 @@ export function NoteEditor({
     }
   };
 
+  const handleTogglePreviewMode = async () => {
+    if (!isPreviewMode && hasUnsavedChanges) {
+      await handleSave();
+    }
+
+    setIsPreviewMode((value) => !value);
+  };
+
   const handleGenerateTags = async () => {
     if (!content) return;
     const suggestedTags = await generateTags(content, note?.id);
@@ -321,10 +340,18 @@ export function NoteEditor({
 
   const handleDeleteNote = () => {
     if (note) {
-      deleteNote(note.id);
-      if (onBackToList) {
-        onBackToList();
-      }
+      setDeleteConfirmOpen(true);
+    }
+  };
+
+  const confirmDeleteNote = async () => {
+    if (!note) return;
+
+    await deleteNote(note.id);
+    setDeleteConfirmOpen(false);
+
+    if (onBackToList) {
+      onBackToList();
     }
   };
 
@@ -414,7 +441,7 @@ export function NoteEditor({
   const renderPreview = () => {
     return (
       <div
-        className="prose prose-sm max-w-none p-4"
+        className="prose prose-sm max-w-none"
         style={{
           whiteSpace: "pre-wrap",
           overflowWrap: "break-word",
@@ -490,7 +517,7 @@ export function NoteEditor({
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setIsPreviewMode(!isPreviewMode)}
+                onClick={handleTogglePreviewMode}
                 className="h-6 w-6 p-0"
               >
                 {isPreviewMode ? (
@@ -649,8 +676,8 @@ export function NoteEditor({
       </div>
 
       {/* Editor Content */}
-      <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <div className="min-w-0 flex-1 overflow-hidden p-4 lg:p-6">
           {isPreviewMode ? (
             <div className="h-full overflow-auto">{renderPreview()}</div>
           ) : (
@@ -674,14 +701,14 @@ export function NoteEditor({
                 }
               }}
               placeholder="Start writing here..."
-              className="w-full h-full resize-none border-0 focus-visible:ring-0 bg-transparent text-sm leading-relaxed p-4"
+              className="w-full h-full resize-none border-0 bg-transparent p-0 text-sm leading-relaxed focus-visible:ring-0"
             />
           )}
         </div>
 
         {/* Related Notes Sidebar - Desktop only */}
         {showRelatedNotes && !isMobile && (
-          <div className="w-64 xl:w-80 border-l">
+          <div className="min-w-0 w-64 shrink-0 border-l xl:w-72 2xl:w-80">
             <RelatedNotes noteId={note.id} content={content} />
           </div>
         )}
@@ -761,6 +788,26 @@ export function NoteEditor({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will delete the note and move it to Trash. You can restore it later from the Trash view.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteNote}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete note
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
